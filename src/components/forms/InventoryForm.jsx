@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import InputField from './InputField';
+import { validateInventoryForm } from '../../utils';
 
 /**
  * InventoryForm component - Form for adding/editing inventory items
@@ -16,18 +17,58 @@ const InventoryForm = ({ initialData = {}, onSubmit, onCancel }) => {
     vendor: initialData.vendor || ''
   });
 
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
+
   const handleChange = (e) => {
     const { name, value } = e.target;
+    const newValue = ['warehouse', 'store', 'safetyStock', 'cost', 'price'].includes(name)
+      ? parseFloat(value) || 0
+      : value;
+
     setFormData(prev => ({
       ...prev,
-      [name]: ['warehouse', 'store', 'safetyStock', 'cost', 'price'].includes(name)
-        ? parseFloat(value) || 0
-        : value
+      [name]: newValue
     }));
+
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: undefined }));
+    }
+  };
+
+  const handleBlur = (e) => {
+    const { name } = e.target;
+    setTouched(prev => ({ ...prev, [name]: true }));
+
+    // Validate on blur
+    const validationErrors = validateInventoryForm(formData);
+    if (validationErrors[name]) {
+      setErrors(prev => ({ ...prev, [name]: validationErrors[name] }));
+    }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    // Validate all fields
+    const validationErrors = validateInventoryForm(formData);
+
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      setTouched({
+        name: true,
+        category: true,
+        vendor: true,
+        cost: true,
+        price: true,
+        warehouse: true,
+        store: true,
+        safetyStock: true
+      });
+      return;
+    }
+
     onSubmit(formData);
   };
 
@@ -38,6 +79,8 @@ const InventoryForm = ({ initialData = {}, onSubmit, onCancel }) => {
         name="name"
         value={formData.name}
         onChange={handleChange}
+        onBlur={handleBlur}
+        error={touched.name && errors.name}
       />
 
       <div className="grid grid-cols-2 gap-4">
@@ -46,12 +89,16 @@ const InventoryForm = ({ initialData = {}, onSubmit, onCancel }) => {
           name="category"
           value={formData.category}
           onChange={handleChange}
+          onBlur={handleBlur}
+          error={touched.category && errors.category}
         />
         <InputField
           label="Vendor"
           name="vendor"
           value={formData.vendor}
           onChange={handleChange}
+          onBlur={handleBlur}
+          error={touched.vendor && errors.vendor}
         />
       </div>
 
@@ -61,16 +108,22 @@ const InventoryForm = ({ initialData = {}, onSubmit, onCancel }) => {
           name="cost"
           type="number"
           step="0.01"
+          min="0"
           value={formData.cost}
           onChange={handleChange}
+          onBlur={handleBlur}
+          error={touched.cost && errors.cost}
         />
         <InputField
           label="Price ($)"
           name="price"
           type="number"
           step="0.01"
+          min="0"
           value={formData.price}
           onChange={handleChange}
+          onBlur={handleBlur}
+          error={touched.price && errors.price}
         />
       </div>
 
@@ -81,25 +134,40 @@ const InventoryForm = ({ initialData = {}, onSubmit, onCancel }) => {
             label="Warehouse"
             name="warehouse"
             type="number"
+            min="0"
             value={formData.warehouse}
             onChange={handleChange}
+            onBlur={handleBlur}
+            error={touched.warehouse && errors.warehouse}
           />
           <InputField
             label="Store"
             name="store"
             type="number"
+            min="0"
             value={formData.store}
             onChange={handleChange}
+            onBlur={handleBlur}
+            error={touched.store && errors.store}
           />
           <InputField
             label="Safety Stock"
             name="safetyStock"
             type="number"
+            min="0"
             value={formData.safetyStock}
             onChange={handleChange}
+            onBlur={handleBlur}
+            error={touched.safetyStock && errors.safetyStock}
           />
         </div>
       </div>
+
+      {Object.keys(errors).length > 0 && touched.name && (
+        <p className="text-sm text-red-600 text-center">
+          Please fix the errors above before submitting.
+        </p>
+      )}
 
       <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
         <button

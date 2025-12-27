@@ -51,6 +51,27 @@ export const exportOrdersToCSV = (orders) => {
 };
 
 /**
+ * Generates and downloads a purchase orders CSV file
+ * @param {Array} purchaseOrders - Array of purchase order items
+ */
+export const exportPurchaseOrdersToCSV = (purchaseOrders) => {
+  const headers = ['PO ID,Vendor,Status,Expected Date,Total'];
+
+  const rows = purchaseOrders.map(po => {
+    return [
+      po.id,
+      `"${po.vendor}"`,
+      po.status,
+      po.expected,
+      po.total.toFixed(2)
+    ].join(',');
+  });
+
+  const csvString = [headers, ...rows].join('\n');
+  downloadFile(csvString, 'purchase_orders_export.csv', 'text/csv');
+};
+
+/**
  * Helper function to trigger file download
  * @param {string} content - File content
  * @param {string} filename - Name of the file
