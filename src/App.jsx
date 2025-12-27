@@ -1,7 +1,9 @@
+import { toast } from 'sonner';
 import { Sidebar, Header, MobileMenu } from './components/layout';
 import { Dashboard, Inventory, Orders, Purchasing, Placeholder } from './pages';
 import { useNavigation, useInventory, useOrders, usePurchaseOrders } from './hooks';
-import { exportInventoryToCSV } from './utils';
+import { exportInventoryToCSV, exportOrdersToCSV, exportPurchaseOrdersToCSV } from './utils';
+import { Toast } from './components/ui';
 
 /**
  * Main Application Component
@@ -49,30 +51,51 @@ function App() {
     receivePO
   } = usePurchaseOrders();
 
-  // Handle export
-  const handleExport = () => {
+  // Handle inventory export
+  const handleInventoryExport = () => {
     exportInventoryToCSV(inventory);
+    toast.success('Inventory exported successfully');
+  };
+
+  // Handle orders export
+  const handleOrdersExport = () => {
+    exportOrdersToCSV(orders);
+    toast.success('Orders exported successfully');
+  };
+
+  // Handle purchase orders export
+  const handlePurchaseOrdersExport = () => {
+    exportPurchaseOrdersToCSV(purchaseOrders);
+    toast.success('Purchase orders exported successfully');
   };
 
   // Handle order fulfillment with notification
   const handleFulfillOrder = (orderId) => {
     fulfillOrder(orderId);
-    alert(`Order ${orderId} marked as Shipped. (Simulation: Inventory would be adjusted here)`);
+    toast.success(`Order ${orderId} marked as Shipped`, {
+      description: 'Inventory levels would be adjusted in a production system'
+    });
   };
 
   // Handle PO receipt with notification
   const handleReceivePO = (poId) => {
     receivePO(poId);
-    alert(`PO ${poId} received. (Simulation: Stock levels would be updated here)`);
+    toast.success(`PO ${poId} received`, {
+      description: 'Stock levels would be updated in a production system'
+    });
   };
 
   // Handle inventory form submission with notification
   const handleInventoryFormSubmit = (data) => {
     const result = handleInventorySubmit(data);
     if (result.action === 'updated') {
-      alert(`SKU ${result.id} updated successfully.`);
+      toast.success(`SKU updated successfully`, {
+        description: `${data.name} has been updated`
+      });
     } else {
-      alert(`New SKU ${result.id} added successfully.`);
+      toast.success(`New SKU added`, {
+        description: `${data.name} has been added to inventory`
+      });
     }
     closeAddModal();
     closeEditModal();
@@ -95,10 +118,11 @@ function App() {
       case 'inventory':
         return (
           <Inventory
+            inventory={inventory}
             filteredInventory={filteredInventory}
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
-            onExport={handleExport}
+            onExport={handleInventoryExport}
             isAddModalOpen={isAddModalOpen}
             onOpenAddModal={openAddModal}
             onCloseAddModal={closeAddModal}
@@ -114,6 +138,7 @@ function App() {
           <Orders
             orders={orders}
             onFulfillOrder={handleFulfillOrder}
+            onExport={handleOrdersExport}
           />
         );
 
@@ -122,6 +147,7 @@ function App() {
           <Purchasing
             purchaseOrders={purchaseOrders}
             onReceivePO={handleReceivePO}
+            onExport={handlePurchaseOrdersExport}
           />
         );
 
@@ -137,36 +163,39 @@ function App() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
-      {/* Desktop Sidebar */}
-      <Sidebar
-        activeTab={activeTab}
-        onNavigate={navigate}
-        pendingOrdersCount={pendingOrdersCount}
-      />
+    <>
+      <Toast />
+      <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
+        {/* Desktop Sidebar */}
+        <Sidebar
+          activeTab={activeTab}
+          onNavigate={navigate}
+          pendingOrdersCount={pendingOrdersCount}
+        />
 
-      {/* Mobile Menu Overlay */}
-      <MobileMenu
-        isOpen={isMobileMenuOpen}
-        onClose={closeMobileMenu}
-        activeTab={activeTab}
-        onNavigate={navigate}
-        pendingOrdersCount={pendingOrdersCount}
-      />
+        {/* Mobile Menu Overlay */}
+        <MobileMenu
+          isOpen={isMobileMenuOpen}
+          onClose={closeMobileMenu}
+          activeTab={activeTab}
+          onNavigate={navigate}
+          pendingOrdersCount={pendingOrdersCount}
+        />
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* Top Header */}
-        <Header onMenuClick={openMobileMenu} />
+        {/* Main Content Area */}
+        <main className="flex-1 flex flex-col h-full overflow-hidden">
+          {/* Top Header */}
+          <Header onMenuClick={openMobileMenu} />
 
-        {/* Scrollable Page Content */}
-        <div className="flex-1 overflow-auto p-4 md:p-8">
-          <div className="max-w-7xl mx-auto">
-            {renderContent()}
+          {/* Scrollable Page Content */}
+          <div className="flex-1 overflow-auto p-4 md:p-8">
+            <div className="max-w-7xl mx-auto">
+              {renderContent()}
+            </div>
           </div>
-        </div>
-      </main>
-    </div>
+        </main>
+      </div>
+    </>
   );
 }
 

@@ -1,15 +1,41 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { INITIAL_INVENTORY } from '../data';
 import { generateSKU, isLowStock } from '../utils';
+
+const STORAGE_KEY = 'zeroerp_inventory';
+
+/**
+ * Load inventory from localStorage or return initial data
+ */
+const loadInventory = () => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (error) {
+    console.error('Failed to load inventory from localStorage:', error);
+  }
+  return INITIAL_INVENTORY;
+};
 
 /**
  * Custom hook for inventory state management
  */
 export const useInventory = () => {
-  const [inventory, setInventory] = useState(INITIAL_INVENTORY);
+  const [inventory, setInventory] = useState(loadInventory);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+
+  // Persist inventory to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
+    } catch (error) {
+      console.error('Failed to save inventory to localStorage:', error);
+    }
+  }, [inventory]);
 
   // Derived state
   const totalStockValue = useMemo(() =>
