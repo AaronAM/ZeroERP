@@ -624,7 +624,9 @@ async function startAllMachines(appName) {
     if (machine.state === 'stopped' || machine.state === 'suspended') {
       try {
         await startMachine(appName, machine.id);
-        results.push({ id: machine.id, name: machine.name, status: 'starting' });
+        // Wait for machine to actually reach 'started' state
+        await waitForMachine(appName, machine.id, 'started', 60);
+        results.push({ id: machine.id, name: machine.name, status: 'started' });
       } catch (error) {
         results.push({ id: machine.id, name: machine.name, status: 'error', error: error.message });
       }
@@ -665,7 +667,9 @@ async function restartAllMachines(appName) {
   for (const machine of machines) {
     try {
       await restartMachine(appName, machine.id);
-      results.push({ id: machine.id, name: machine.name, status: 'restarting' });
+      // Wait for machine to actually reach 'started' state after restart
+      await waitForMachine(appName, machine.id, 'started', 60);
+      results.push({ id: machine.id, name: machine.name, status: 'started' });
     } catch (error) {
       results.push({ id: machine.id, name: machine.name, status: 'error', error: error.message });
     }
@@ -742,8 +746,10 @@ async function cli() {
         console.error('Usage: fly-api start <machineId>');
         process.exit(1);
       }
+      console.log(`Starting machine ${machineId}...`);
       await startMachine(appName, machineId);
-      console.log(`Machine ${machineId} starting...`);
+      await waitForMachine(appName, machineId, 'started', 60);
+      console.log(`Machine ${machineId} started successfully`);
     },
 
     'stop': async () => {
@@ -762,8 +768,10 @@ async function cli() {
         console.error('Usage: fly-api restart <machineId>');
         process.exit(1);
       }
+      console.log(`Restarting machine ${machineId}...`);
       await restartMachine(appName, machineId);
-      console.log(`Machine ${machineId} restarting...`);
+      await waitForMachine(appName, machineId, 'started', 60);
+      console.log(`Machine ${machineId} restarted successfully`);
     },
 
     'suspend': async () => {
@@ -797,9 +805,21 @@ async function cli() {
     },
 
     'start-all': async () => {
-      console.log('Starting all machines...');
+      console.log('Starting all machines (waiting for each to be ready)...');
       const results = await startAllMachines(appName);
-      results.forEach(r => console.log(`  ${r.name}: ${r.status}`));
+      results.forEach(r => {
+        if (r.status === 'error') {
+          console.log(`  ${r.name}: ${r.status} - ${r.error}`);
+        } else {
+          console.log(`  ${r.name}: ${r.status}`);
+        }
+      });
+      const failed = results.filter(r => r.status === 'error');
+      if (failed.length > 0) {
+        console.log(`\nWarning: ${failed.length} machine(s) failed to start`);
+      } else {
+        console.log('\nAll machines started successfully');
+      }
     },
 
     'stop-all': async () => {
@@ -809,9 +829,21 @@ async function cli() {
     },
 
     'restart-all': async () => {
-      console.log('Restarting all machines...');
+      console.log('Restarting all machines (waiting for each to be ready)...');
       const results = await restartAllMachines(appName);
-      results.forEach(r => console.log(`  ${r.name}: ${r.status}`));
+      results.forEach(r => {
+        if (r.status === 'error') {
+          console.log(`  ${r.name}: ${r.status} - ${r.error}`);
+        } else {
+          console.log(`  ${r.name}: ${r.status}`);
+        }
+      });
+      const failed = results.filter(r => r.status === 'error');
+      if (failed.length > 0) {
+        console.log(`\nWarning: ${failed.length} machine(s) failed to restart`);
+      } else {
+        console.log('\nAll machines restarted successfully');
+      }
     },
 
     'volumes': async () => {
