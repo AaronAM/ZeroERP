@@ -5,7 +5,8 @@ import {
   Truck,
   BarChart3,
   Settings,
-  CreditCard
+  CreditCard,
+  Plug
 } from 'lucide-react';
 
 const ICONS = {
@@ -15,7 +16,8 @@ const ICONS = {
   Truck,
   BarChart3,
   Settings,
-  CreditCard
+  CreditCard,
+  Plug
 };
 
 const NAV_ITEMS = [
@@ -24,6 +26,7 @@ const NAV_ITEMS = [
   { id: 'orders', label: 'Orders', icon: 'ShoppingCart', showBadge: true },
   { id: 'purchasing', label: 'Purchasing', icon: 'Truck' },
   { id: 'billing', label: 'Billing', icon: 'CreditCard' },
+  { id: 'integrations', label: 'Integrations', icon: 'Plug' },
   { id: 'reports', label: 'Reports', icon: 'BarChart3' },
   { id: 'settings', label: 'Settings', icon: 'Settings' },
 ];

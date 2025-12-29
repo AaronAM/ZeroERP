@@ -1,9 +1,10 @@
 import { toast } from 'sonner';
 import { Sidebar, Header, MobileMenu } from './components/layout';
-import { Dashboard, Inventory, Orders, Purchasing, Billing, Placeholder } from './pages';
+import { Dashboard, Inventory, Orders, Purchasing, Billing, Integrations, Placeholder } from './pages';
 import { useNavigation, useInventory, useOrders, usePurchaseOrders, useBilling } from './hooks';
 import { exportInventoryToCSV, exportOrdersToCSV, exportPurchaseOrdersToCSV } from './utils';
 import { Toast } from './components/ui';
+import { SmartReplenishment } from './components/dashboard';
 
 /**
  * Main Application Component
@@ -121,18 +122,55 @@ function App() {
     closeEditModal();
   };
 
+  // Handle auto-order from Smart Replenishment
+  const handleAutoOrder = (item) => {
+    const suggestedQty = Math.max(0, (item.safetyStock * 2) - (item.stock.warehouse + item.stock.store));
+    toast.success(`Purchase order created for ${item.name}`, {
+      description: `Quantity: ${suggestedQty} units from ${item.vendor}`
+    });
+    // In production, this would create an actual PO
+  };
+
+  // Handle Command Palette actions
+  const handleCommandAction = (action) => {
+    switch (action) {
+      case 'addInventory':
+        navigate('inventory');
+        setTimeout(() => openAddModal(), 100);
+        break;
+      case 'createOrder':
+        toast.info('Order creation', {
+          description: 'Order creation would open here'
+        });
+        break;
+      default:
+        break;
+    }
+  };
+
   // Render active page content
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
         return (
-          <Dashboard
-            totalStockValue={totalStockValue}
-            pendingOrdersCount={pendingOrdersCount}
-            lowStockCount={lowStockCount}
-            lowStockItems={lowStockItems}
-            normalStockItems={normalStockItems}
-          />
+          <>
+            {/* Smart Replenishment - AI-powered reorder suggestions */}
+            {lowStockItems.length > 0 && (
+              <div className="mb-6">
+                <SmartReplenishment
+                  lowStockItems={lowStockItems}
+                  onAutoOrder={handleAutoOrder}
+                />
+              </div>
+            )}
+            <Dashboard
+              totalStockValue={totalStockValue}
+              pendingOrdersCount={pendingOrdersCount}
+              lowStockCount={lowStockCount}
+              lowStockItems={lowStockItems}
+              normalStockItems={normalStockItems}
+            />
+          </>
         );
 
       case 'inventory':
@@ -193,6 +231,9 @@ function App() {
           />
         );
 
+      case 'integrations':
+        return <Integrations />;
+
       case 'reports':
         return <Placeholder title="Reports" />;
 
@@ -227,7 +268,11 @@ function App() {
         {/* Main Content Area */}
         <main className="flex-1 flex flex-col h-full overflow-hidden">
           {/* Top Header */}
-          <Header onMenuClick={openMobileMenu} />
+          <Header
+            onMenuClick={openMobileMenu}
+            onNavigate={navigate}
+            onAction={handleCommandAction}
+          />
 
           {/* Scrollable Page Content */}
           <div className="flex-1 overflow-auto p-4 md:p-8">
