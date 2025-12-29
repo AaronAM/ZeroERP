@@ -1,5 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { INITIAL_PURCHASE_ORDERS } from '../data';
+import { validatePurchaseOrderForm, hasValidationErrors } from '../utils/helpers';
+import { logger } from '../utils/logger';
 
 const STORAGE_KEY = 'zeroerp_purchase_orders';
 
@@ -13,7 +15,7 @@ const loadPurchaseOrders = () => {
       return JSON.parse(saved);
     }
   } catch (error) {
-    console.error('Failed to load purchase orders from localStorage:', error);
+    logger.error('Failed to load purchase orders from localStorage:', error);
   }
   return INITIAL_PURCHASE_ORDERS;
 };
@@ -29,7 +31,7 @@ export const usePurchaseOrders = () => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(purchaseOrders));
     } catch (error) {
-      console.error('Failed to save purchase orders to localStorage:', error);
+      logger.error('Failed to save purchase orders to localStorage:', error);
     }
   }, [purchaseOrders]);
 
@@ -57,10 +59,21 @@ export const usePurchaseOrders = () => {
     return poId;
   };
 
-  const addPurchaseOrder = (poData) => {
+  const addPurchaseOrder = useCallback((poData, skipValidation = false) => {
+    if (!skipValidation) {
+      const errors = validatePurchaseOrderForm(poData);
+      if (hasValidationErrors(errors)) {
+        return { success: false, errors };
+      }
+    }
     setPurchaseOrders(prev => [...prev, poData]);
-    return poData;
-  };
+    return { success: true, data: poData };
+  }, []);
+
+  // Validate PO data without adding
+  const validatePurchaseOrder = useCallback((poData) => {
+    return validatePurchaseOrderForm(poData);
+  }, []);
 
   return {
     // State
@@ -74,5 +87,6 @@ export const usePurchaseOrders = () => {
     // Actions
     receivePO,
     addPurchaseOrder,
+    validatePurchaseOrder,
   };
 };

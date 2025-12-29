@@ -116,3 +116,98 @@ export const validateInventoryForm = (data) => {
 
   return errors;
 };
+
+/**
+ * Validate order form data
+ * @param {Object} data - Order form data to validate
+ * @returns {Object} Object with errors (empty if valid)
+ */
+export const validateOrderForm = (data) => {
+  const errors = {};
+
+  if (!data.customer?.trim()) {
+    errors.customer = 'Customer name is required';
+  }
+
+  if (!data.channel?.trim()) {
+    errors.channel = 'Sales channel is required';
+  }
+
+  if (!data.items || data.items.length === 0) {
+    errors.items = 'At least one item is required';
+  } else {
+    // Validate each item
+    data.items.forEach((item, index) => {
+      if (!item.sku?.trim()) {
+        errors[`items.${index}.sku`] = 'SKU is required';
+      }
+      if (item.quantity <= 0) {
+        errors[`items.${index}.quantity`] = 'Quantity must be greater than 0';
+      }
+      if (item.price < 0) {
+        errors[`items.${index}.price`] = 'Price cannot be negative';
+      }
+    });
+  }
+
+  if (data.total < 0) {
+    errors.total = 'Total cannot be negative';
+  }
+
+  return errors;
+};
+
+/**
+ * Validate purchase order form data
+ * @param {Object} data - Purchase order form data to validate
+ * @returns {Object} Object with errors (empty if valid)
+ */
+export const validatePurchaseOrderForm = (data) => {
+  const errors = {};
+
+  if (!data.vendor?.trim()) {
+    errors.vendor = 'Vendor is required';
+  }
+
+  if (!data.items || data.items.length === 0) {
+    errors.items = 'At least one item is required';
+  } else {
+    // Validate each item
+    data.items.forEach((item, index) => {
+      if (!item.name?.trim()) {
+        errors[`items.${index}.name`] = 'Item name is required';
+      }
+      if (item.quantity <= 0) {
+        errors[`items.${index}.quantity`] = 'Quantity must be greater than 0';
+      }
+      if (item.unitCost < 0) {
+        errors[`items.${index}.unitCost`] = 'Unit cost cannot be negative';
+      }
+    });
+  }
+
+  if (data.total < 0) {
+    errors.total = 'Total cannot be negative';
+  }
+
+  // Validate expected delivery date if provided
+  if (data.expectedDelivery) {
+    const deliveryDate = new Date(data.expectedDelivery);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (deliveryDate < today) {
+      errors.expectedDelivery = 'Expected delivery date cannot be in the past';
+    }
+  }
+
+  return errors;
+};
+
+/**
+ * Check if an object has any errors
+ * @param {Object} errors - Errors object from validation
+ * @returns {boolean} True if there are any errors
+ */
+export const hasValidationErrors = (errors) => {
+  return Object.keys(errors).length > 0;
+};

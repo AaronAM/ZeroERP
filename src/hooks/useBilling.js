@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { billingApi } from '../services/api';
+import { logger } from '../utils/logger';
 
 const STORAGE_KEY = 'zeroerp_billing';
 
@@ -13,7 +14,7 @@ const loadBillingData = () => {
       return JSON.parse(saved);
     }
   } catch (error) {
-    console.error('Failed to load billing data:', error);
+    logger.error('Failed to load billing data:', error);
   }
   return {
     customerId: null,
@@ -36,9 +37,14 @@ export const useBilling = () => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(billingData));
     } catch (error) {
-      console.error('Failed to save billing data:', error);
+      logger.error('Failed to save billing data:', error);
     }
   }, [billingData]);
+
+  // Clear error state
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
 
   // Check API health
   const checkApiHealth = useCallback(async () => {
@@ -349,5 +355,6 @@ export const useBilling = () => {
     openBillingPortal,
     fetchProducts,
     clearBillingData,
+    clearError,
   };
 };
