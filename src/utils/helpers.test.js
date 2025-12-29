@@ -4,6 +4,7 @@ import {
   isLowStock,
   calculateMargin,
   formatCurrency,
+  generateId,
   generateSKU,
   generateOrderId,
   generatePOId,
@@ -61,6 +62,24 @@ describe('formatCurrency', () => {
   it('should handle zero', () => {
     const result = formatCurrency(0);
     expect(result).toMatch(/\$0\.00/);
+  });
+});
+
+describe('generateId', () => {
+  it('should generate an ID with correct format for any prefix', () => {
+    const id = generateId('TEST');
+    expect(id).toMatch(/^TEST-[A-Z0-9]+-[0-9]{3}$/);
+  });
+
+  it('should generate unique IDs', () => {
+    const id1 = generateId('TEST');
+    const id2 = generateId('TEST');
+    expect(id1).not.toBe(id2);
+  });
+
+  it('should uppercase the result', () => {
+    const id = generateId('test');
+    expect(id).toMatch(/^TEST-/);
   });
 });
 

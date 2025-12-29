@@ -4,8 +4,13 @@ export {
   isLowStock,
   calculateMargin,
   formatCurrency,
+  generateId,
   generateSKU,
   generateOrderId,
   generatePOId,
-  validateInventoryForm
+  validateInventoryForm,
+  validateOrderForm,
+  validatePurchaseOrderForm,
+  hasValidationErrors
 } from './helpers';
+export { logger } from './logger';

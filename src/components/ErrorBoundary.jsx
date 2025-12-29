@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
+import { logger } from '../utils/logger';
 
 /**
  * ErrorBoundary component - Catches JavaScript errors in child components
@@ -17,7 +18,7 @@ class ErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     this.setState({ errorInfo });
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    logger.error('ErrorBoundary caught an error:', error, errorInfo);
   }
 
   handleReset = () => {

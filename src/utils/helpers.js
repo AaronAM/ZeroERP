@@ -41,34 +41,33 @@ export const formatCurrency = (value) => {
 };
 
 /**
- * Generate a unique SKU ID with timestamp to prevent collisions
+ * Generate a unique ID with prefix and timestamp to prevent collisions
+ * @param {string} prefix - Prefix for the ID (e.g., 'SKU', 'ORD', 'PO')
+ * @returns {string} Generated unique ID
+ */
+export const generateId = (prefix) => {
+  const timestamp = Date.now().toString(36);
+  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `${prefix}-${timestamp}-${random}`.toUpperCase();
+};
+
+/**
+ * Generate a unique SKU ID
  * @returns {string} Generated SKU ID
  */
-export const generateSKU = () => {
-  const timestamp = Date.now().toString(36);
-  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  return `SKU-${timestamp}-${random}`.toUpperCase();
-};
+export const generateSKU = () => generateId('SKU');
 
 /**
- * Generate a unique Order ID with timestamp to prevent collisions
+ * Generate a unique Order ID
  * @returns {string} Generated Order ID
  */
-export const generateOrderId = () => {
-  const timestamp = Date.now().toString(36);
-  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  return `ORD-${timestamp}-${random}`.toUpperCase();
-};
+export const generateOrderId = () => generateId('ORD');
 
 /**
- * Generate a unique PO ID with timestamp to prevent collisions
+ * Generate a unique PO ID
  * @returns {string} Generated PO ID
  */
-export const generatePOId = () => {
-  const timestamp = Date.now().toString(36);
-  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  return `PO-${timestamp}-${random}`.toUpperCase();
-};
+export const generatePOId = () => generateId('PO');
 
 /**
  * Validate inventory form data
