@@ -4,18 +4,119 @@ import Stripe from 'stripe';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import crypto from 'crypto';
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Environment configuration
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const IS_PRODUCTION = NODE_ENV === 'production';
+
+/**
+ * Conditional logger - only logs in development or when DEBUG is enabled
+ */
+const logger = {
+  info: (...args) => {
+    if (!IS_PRODUCTION || process.env.DEBUG) console.log('[INFO]', ...args);
+  },
+  warn: (...args) => {
+    console.warn('[WARN]', ...args);
+  },
+  error: (...args) => {
+    console.error('[ERROR]', ...args);
+  },
+  debug: (...args) => {
+    if (!IS_PRODUCTION) console.log('[DEBUG]', ...args);
+  }
+};
+
+/**
+ * Validate required environment variables at startup
+ */
+const validateEnv = () => {
+  const warnings = [];
+  const errors = [];
+
+  // Check Stripe key
+  const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_API;
+  if (!stripeKey) {
+    warnings.push('No Stripe API key found (STRIPE_SECRET_KEY or STRIPE_API). Stripe operations will fail.');
+  }
+
+  // Check webhook secret in production
+  if (IS_PRODUCTION && !process.env.STRIPE_WEBHOOK_SECRET) {
+    warnings.push('STRIPE_WEBHOOK_SECRET not set. Webhook signature verification will fail.');
+  }
+
+  // Check API key for authentication in production
+  if (IS_PRODUCTION && !process.env.API_KEY) {
+    warnings.push('API_KEY not set. API authentication is disabled. Consider setting API_KEY for production.');
+  }
+
+  // Log warnings
+  warnings.forEach(w => logger.warn(w));
+
+  // Throw on critical errors
+  if (errors.length > 0) {
+    throw new Error(`Configuration errors:\n${errors.join('\n')}`);
+  }
+
+  return { stripeKey };
+};
+
+// Validate environment on startup
+const { stripeKey } = validateEnv();
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Initialize Stripe with secret key (supports STRIPE_SECRET_KEY or STRIPE_API)
-const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_API;
-const stripe = new Stripe(stripeKey);
+// Initialize Stripe with secret key
+const stripe = stripeKey ? new Stripe(stripeKey) : null;
+
+/**
+ * API Key authentication middleware
+ * Validates API key from header or query parameter
+ */
+const authenticateApiKey = (req, res, next) => {
+  // Skip auth in development if no API_KEY is set
+  if (!process.env.API_KEY) {
+    return next();
+  }
+
+  // Get API key from header or query
+  const apiKey = req.headers['x-api-key'] || req.query.apiKey;
+
+  if (!apiKey) {
+    return res.status(401).json({ error: 'API key required. Provide via X-API-Key header.' });
+  }
+
+  // Constant-time comparison to prevent timing attacks
+  const isValid = crypto.timingSafeEqual(
+    Buffer.from(apiKey),
+    Buffer.from(process.env.API_KEY)
+  );
+
+  if (!isValid) {
+    return res.status(403).json({ error: 'Invalid API key' });
+  }
+
+  next();
+};
+
+/**
+ * Check if Stripe is configured middleware
+ */
+const requireStripe = (req, res, next) => {
+  if (!stripe) {
+    return res.status(503).json({
+      error: 'Stripe is not configured. Set STRIPE_SECRET_KEY or STRIPE_API environment variable.'
+    });
+  }
+  next();
+};
 
 // Middleware
 app.use(cors({
@@ -24,7 +125,12 @@ app.use(cors({
 }));
 
 // Webhook endpoint needs raw body - must be before express.json()
+// Note: Webhooks are authenticated by Stripe signature, not API key
 app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  if (!stripe) {
+    return res.status(503).json({ error: 'Stripe not configured' });
+  }
+
   const sig = req.headers['stripe-signature'];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -33,35 +139,35 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
   } catch (err) {
-    console.error('Webhook signature verification failed:', err.message);
+    logger.error('Webhook signature verification failed:', err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
   // Handle the event
   switch (event.type) {
     case 'payment_intent.succeeded':
-      console.log('PaymentIntent succeeded:', event.data.object.id);
+      logger.info('PaymentIntent succeeded:', event.data.object.id);
       break;
     case 'payment_intent.payment_failed':
-      console.log('PaymentIntent failed:', event.data.object.id);
+      logger.warn('PaymentIntent failed:', event.data.object.id);
       break;
     case 'customer.subscription.created':
-      console.log('Subscription created:', event.data.object.id);
+      logger.info('Subscription created:', event.data.object.id);
       break;
     case 'customer.subscription.updated':
-      console.log('Subscription updated:', event.data.object.id);
+      logger.info('Subscription updated:', event.data.object.id);
       break;
     case 'customer.subscription.deleted':
-      console.log('Subscription cancelled:', event.data.object.id);
+      logger.info('Subscription cancelled:', event.data.object.id);
       break;
     case 'invoice.paid':
-      console.log('Invoice paid:', event.data.object.id);
+      logger.info('Invoice paid:', event.data.object.id);
       break;
     case 'invoice.payment_failed':
-      console.log('Invoice payment failed:', event.data.object.id);
+      logger.warn('Invoice payment failed:', event.data.object.id);
       break;
     default:
-      console.log(`Unhandled event type: ${event.type}`);
+      logger.debug(`Unhandled event type: ${event.type}`);
   }
 
   res.json({ received: true });
@@ -70,10 +176,20 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
 // JSON body parser for other routes
 app.use(express.json());
 
-// Health check
+// Health check - no auth required
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', stripe: !!stripeKey });
+  res.json({ status: 'ok', stripe: !!stripe, environment: NODE_ENV });
 });
+
+// Apply authentication to all API routes (except health and webhooks)
+app.use('/api/customers', authenticateApiKey, requireStripe);
+app.use('/api/payment-intents', authenticateApiKey, requireStripe);
+app.use('/api/subscriptions', authenticateApiKey, requireStripe);
+app.use('/api/products', authenticateApiKey, requireStripe);
+app.use('/api/invoices', authenticateApiKey, requireStripe);
+app.use('/api/setup-intents', authenticateApiKey, requireStripe);
+app.use('/api/payment-methods', authenticateApiKey, requireStripe);
+app.use('/api/billing-portal', authenticateApiKey, requireStripe);
 
 // Create a customer
 app.post('/api/customers', async (req, res) => {
@@ -86,7 +202,7 @@ app.post('/api/customers', async (req, res) => {
     });
     res.json(customer);
   } catch (error) {
-    console.error('Error creating customer:', error);
+    logger.error('Error creating customer:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -98,7 +214,7 @@ app.get('/api/customers/:customerId', async (req, res) => {
     const customer = await stripe.customers.retrieve(customerId);
     res.json(customer);
   } catch (error) {
-    console.error('Error retrieving customer:', error);
+    logger.error('Error retrieving customer:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -123,7 +239,7 @@ app.post('/api/payment-intents', async (req, res) => {
       paymentIntentId: paymentIntent.id
     });
   } catch (error) {
-    console.error('Error creating payment intent:', error);
+    logger.error('Error creating payment intent:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -135,7 +251,7 @@ app.get('/api/payment-intents/:paymentIntentId', async (req, res) => {
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
     res.json(paymentIntent);
   } catch (error) {
-    console.error('Error retrieving payment intent:', error);
+    logger.error('Error retrieving payment intent:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -176,7 +292,7 @@ app.post('/api/subscriptions', async (req, res) => {
       status: subscription.status
     });
   } catch (error) {
-    console.error('Error creating subscription:', error);
+    logger.error('Error creating subscription:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -190,7 +306,7 @@ app.get('/api/subscriptions/:subscriptionId', async (req, res) => {
     });
     res.json(subscription);
   } catch (error) {
-    console.error('Error retrieving subscription:', error);
+    logger.error('Error retrieving subscription:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -205,7 +321,7 @@ app.get('/api/customers/:customerId/subscriptions', async (req, res) => {
     });
     res.json(subscriptions);
   } catch (error) {
-    console.error('Error listing subscriptions:', error);
+    logger.error('Error listing subscriptions:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -227,7 +343,7 @@ app.post('/api/subscriptions/:subscriptionId/cancel', async (req, res) => {
 
     res.json(subscription);
   } catch (error) {
-    console.error('Error cancelling subscription:', error);
+    logger.error('Error cancelling subscription:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -241,7 +357,7 @@ app.post('/api/subscriptions/:subscriptionId/resume', async (req, res) => {
     });
     res.json(subscription);
   } catch (error) {
-    console.error('Error resuming subscription:', error);
+    logger.error('Error resuming subscription:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -255,7 +371,7 @@ app.get('/api/products', async (req, res) => {
     });
     res.json(products);
   } catch (error) {
-    console.error('Error listing products:', error);
+    logger.error('Error listing products:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -270,7 +386,7 @@ app.get('/api/products/:productId/prices', async (req, res) => {
     });
     res.json(prices);
   } catch (error) {
-    console.error('Error listing prices:', error);
+    logger.error('Error listing prices:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -287,7 +403,7 @@ app.get('/api/customers/:customerId/invoices', async (req, res) => {
     });
     res.json(invoices);
   } catch (error) {
-    console.error('Error listing invoices:', error);
+    logger.error('Error listing invoices:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -299,7 +415,7 @@ app.get('/api/invoices/:invoiceId/pdf', async (req, res) => {
     const invoice = await stripe.invoices.retrieve(invoiceId);
     res.json({ pdfUrl: invoice.invoice_pdf });
   } catch (error) {
-    console.error('Error getting invoice PDF:', error);
+    logger.error('Error getting invoice PDF:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -314,7 +430,7 @@ app.post('/api/setup-intents', async (req, res) => {
     });
     res.json({ clientSecret: setupIntent.client_secret });
   } catch (error) {
-    console.error('Error creating setup intent:', error);
+    logger.error('Error creating setup intent:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -329,7 +445,7 @@ app.get('/api/customers/:customerId/payment-methods', async (req, res) => {
     });
     res.json(paymentMethods);
   } catch (error) {
-    console.error('Error listing payment methods:', error);
+    logger.error('Error listing payment methods:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -341,7 +457,7 @@ app.delete('/api/payment-methods/:paymentMethodId', async (req, res) => {
     await stripe.paymentMethods.detach(paymentMethodId);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting payment method:', error);
+    logger.error('Error deleting payment method:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -356,7 +472,7 @@ app.post('/api/billing-portal', async (req, res) => {
     });
     res.json({ url: session.url });
   } catch (error) {
-    console.error('Error creating billing portal session:', error);
+    logger.error('Error creating billing portal session:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -375,11 +491,15 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`ZeroERP server running on port ${PORT}`);
-  console.log(`Serving static files from: ${distPath}`);
-  if (!stripeKey) {
-    console.warn('Warning: No Stripe API key found (STRIPE_SECRET_KEY or STRIPE_API). Stripe operations will fail.');
+  logger.info(`ZeroERP server running on port ${PORT}`);
+  logger.info(`Environment: ${NODE_ENV}`);
+  logger.debug(`Serving static files from: ${distPath}`);
+  if (stripe) {
+    logger.info('Stripe API configured successfully');
+  }
+  if (process.env.API_KEY) {
+    logger.info('API key authentication enabled');
   } else {
-    console.log('Stripe API key configured successfully');
+    logger.warn('API key authentication disabled (set API_KEY env var to enable)');
   }
 });

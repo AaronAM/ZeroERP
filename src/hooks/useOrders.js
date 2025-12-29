@@ -1,5 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { INITIAL_ORDERS } from '../data';
+import { validateOrderForm, hasValidationErrors } from '../utils/helpers';
+import { logger } from '../utils/logger';
 
 const STORAGE_KEY = 'zeroerp_orders';
 
@@ -13,7 +15,7 @@ const loadOrders = () => {
       return JSON.parse(saved);
     }
   } catch (error) {
-    console.error('Failed to load orders from localStorage:', error);
+    logger.error('Failed to load orders from localStorage:', error);
   }
   return INITIAL_ORDERS;
 };
@@ -29,7 +31,7 @@ export const useOrders = () => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
     } catch (error) {
-      console.error('Failed to save orders to localStorage:', error);
+      logger.error('Failed to save orders to localStorage:', error);
     }
   }, [orders]);
 
@@ -90,10 +92,21 @@ export const useOrders = () => {
     return orderId;
   };
 
-  const addOrder = (orderData) => {
+  const addOrder = useCallback((orderData, skipValidation = false) => {
+    if (!skipValidation) {
+      const errors = validateOrderForm(orderData);
+      if (hasValidationErrors(errors)) {
+        return { success: false, errors };
+      }
+    }
     setOrders(prev => [...prev, orderData]);
-    return orderData;
-  };
+    return { success: true, data: orderData };
+  }, []);
+
+  // Validate order data without adding
+  const validateOrder = useCallback((orderData) => {
+    return validateOrderForm(orderData);
+  }, []);
 
   // Payment actions
   const updatePaymentStatus = (orderId, paymentStatus, paymentDetails = {}) => {
@@ -136,6 +149,7 @@ export const useOrders = () => {
     fulfillOrder,
     markDelivered,
     addOrder,
+    validateOrder,
     updatePaymentStatus,
     markOrderPaid,
     markPaymentFailed,

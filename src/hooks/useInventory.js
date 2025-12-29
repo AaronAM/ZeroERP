@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { INITIAL_INVENTORY } from '../data';
 import { generateSKU, isLowStock } from '../utils';
+import { logger } from '../utils/logger';
 
 const STORAGE_KEY = 'zeroerp_inventory';
 
@@ -14,7 +15,7 @@ const loadInventory = () => {
       return JSON.parse(saved);
     }
   } catch (error) {
-    console.error('Failed to load inventory from localStorage:', error);
+    logger.error('Failed to load inventory from localStorage:', error);
   }
   return INITIAL_INVENTORY;
 };
@@ -33,7 +34,7 @@ export const useInventory = () => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
     } catch (error) {
-      console.error('Failed to save inventory to localStorage:', error);
+      logger.error('Failed to save inventory to localStorage:', error);
     }
   }, [inventory]);
 

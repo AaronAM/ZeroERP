@@ -2,6 +2,8 @@
  * API Service - Centralized API client for backend communication
  */
 
+import { logger } from '../utils/logger';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 /**
@@ -32,7 +34,7 @@ async function apiRequest(endpoint, options = {}) {
 
     return await response.json();
   } catch (error) {
-    console.error(`API Error [${endpoint}]:`, error);
+    logger.error(`API Error [${endpoint}]:`, error);
     throw error;
   }
 }

@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Elements } from '@stripe/react-stripe-js';
-import { CreditCard, Receipt, Package, Settings, Plus, ExternalLink, AlertCircle, CheckCircle } from 'lucide-react';
+import { CreditCard, Receipt, Package, Settings, Plus, ExternalLink, AlertCircle } from 'lucide-react';
 import { getStripe, isStripeConfigured, stripeElementsAppearance } from '../services/stripe';
 import {
   PaymentForm,
   SubscriptionCard,
   InvoiceList,
   PaymentMethodCard,
-  PricingCard,
 } from '../components/billing';
 import Card from '../components/ui/Card';
 import Modal from '../components/ui/Modal';
+import { logger } from '../utils/logger';
 
 /**
  * Billing page - Manage subscriptions, payments, and invoices
@@ -79,7 +79,7 @@ const Billing = ({
       setPaymentClientSecret(clientSecret);
       setIsPaymentModalOpen(true);
     } catch (err) {
-      console.error('Error creating payment intent:', err);
+      logger.error('Error creating payment intent:', err);
     }
   };
 
@@ -409,7 +409,7 @@ const Billing = ({
           >
             <PaymentForm
               onSuccess={handlePaymentSuccess}
-              onError={(err) => console.error('Payment error:', err)}
+              onError={(err) => logger.error('Payment error:', err)}
               buttonText="Pay $10.00"
             />
           </Elements>
